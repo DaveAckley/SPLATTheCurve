@@ -1,0 +1,10 @@
+# Ignore emacs backup files
+*~
+
+# Ignore splat and ulam generated files
+.splatgen
+.gen
+
+# Ignore ishtar related stuff
+ISH-BUILD-*.txt
+ISH-*.tgz
