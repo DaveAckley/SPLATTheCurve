@@ -1,0 +1,222 @@
+############
+= element SocialPolicy.  'Flattening the curve' demo
+\color #aa0
+\symbol SP
+\author Dave Ackley
+\date 20200310
+\license public-domain
+
+== Data members
+u /** Reduce contact */ parameter Bool cREDUCE_CONTACT = false;
+u /** Move less */ parameter Bool cSTAY_LOCAL = false;
+u /** Transfer patients */ parameter Bool cTRANSFER_PATIENTS = false;
+
+############
+= element Parameters
+\color #aa0
+\symbol PM
+
+== Data members
+u /** Hospital odds \range 0..100 */ parameter Unsigned cRECOVER_PCT = 5;
+u /** Critical odds \range 0..100 */ parameter Unsigned cDIE_PCT = 5;
+u /** Hospitals \range 0..100 */ parameter Unsigned cHOSPITAL_PCT = 6;
+u /** People \range 0..100 */ parameter Unsigned cPEOPLE_PCT = 24;
+u /** Infection rate \range 0..100 */ parameter Unsigned cBASE_INFECTION_PCT = 42;
+
+############
+= quark Person
+
+== Rule: Normally zoom around
+given @ : !SocialPolicy.cSTAY_LOCAL
+given E : true
+vote E isa Empty
+change @ { ew.swap(0,$E.$winsn); }
+
+     E            .
+    EEE          ...
+   E...E        .....
+  E.....E      .......
+ EE..@..EE -> ....@....
+  E.....E      .......
+   E...E        .....
+    EEE          ...
+     E            .
+
+== Rule: Consider stepping back
+given @ : SocialPolicy.cREDUCE_CONTACT
+given P isa Person
+let N = ~P
+
+ P@_N -> ._@.
+
+== Rules
+
+  @_ -> _@   # Wander around locally
+
+  @ -> @     # Or hang out
+
+############
+= quark Infectious isa Person
+
+== Rule: Uninfected next to infected IS risky..
+given U isa Uninfected
+change I isa Infected
+check @ : random.oddsOf(Parameters.cBASE_INFECTION_PCT,100)
+
+ U@ -> I@
+
+== Rule: ..but LARGER risk if not reducing contact
+given @ : !SocialPolicy.cREDUCE_CONTACT
+vote U isa Uninfected
+change @ { ew[$U.$winsn] = Infected.instanceof; }
+
+  U       .
+ U@U ->  .@.
+  U       .
+
+############
+= element Infected isa Infectious
+\color #0cc
+\symmetries all
+
+== Rule: Recover
+check @ : random.oddsOf(1,100)
+change R isa Recovered
+
+  @ -> R
+
+== Rule: Go critical
+check @ : random.oddsOf(2,100)
+change C isa Critical
+
+  @ -> C
+
+
+############
+= element Patient
+\color #ee0
+\symmetries none
+
+== Rules
+vote H isa Hospital
+
+ H@H -> ...        # Stay put (and don't shed virus)
+
+== Rule: You're not a patient without a hospital
+change C isa Critical
+
+ @ -> C
+
+
+############
+= element Critical isa Infectious
+\color #ff0
+\symmetries all
+
+== Rule: Die pretty quick without a hospital
+check @ : random.oddsOf(Parameters.cDIE_PCT,100)
+change D isa Dead
+
+ @ -> D
+
+
+############
+= element Dead
+\color #fff
+\symmetries none
+
+== Rule: Fill empty space below
+given e : true
+vote e isa Empty
+change e { ew.swap(0,$e.$winsn); }
+
+  @  ->  e    # Fill a lower empty
+  e      .
+  e      .
+  e      .
+  e      .
+
+  @  ->  e    # Slant if needed
+ e.e    ...
+ e.e    ...
+
+  @ -> @      # Or wait
+
+############
+= element Uninfected isa Person
+\color #0c0
+\symmetries all
+
+############
+= element Recovered isa Person
+\color #33c
+\symmetries all
+
+############
+= element Hospital
+\color #c00
+\symmetries none
+
+== Rule: Heal patients
+vote P isa Patient
+check @ : random.oddsOf(Parameters.cRECOVER_PCT,100)
+change R isa Recovered
+
+  P@ -> R@
+
+
+== Rule: Check in new patients
+vote C isa Critical
+vote E isa Empty
+change @ { ew[$C.$winsn] = Empty.instanceof; }
+change P isa Patient
+
+    C            .
+   CCC          ...
+  CCCCC        .....
+ CCE@CCC  ->  ..P@...
+  CCCCC        .....
+   CCC          ...
+    C            .
+
+== Rule: Maybe accept hospital transfers
+vote P isa Patient
+vote E isa Empty
+check @ : SocialPolicy.cTRANSFER_PATIENTS
+change @ { ew.swap($E.$winsn,$P.$winsn); }
+
+    P            .
+   PPP          ...
+  PPPPP        .....
+ PPE@PPP  ->  ..P@...
+  PPPPP        .....
+   PPP          ...
+    P            .
+
+
+== Rule: Hold
+
+  @ -> @
+
+
+
+############
+= element WorldSeed
+\symbol WS
+\color #ff0
+
+== Rule: Make some hospitals
+check @ : random.oddsOf(Parameters.cHOSPITAL_PCT,100)
+change H isa Hospital
+
+ @ -> H
+
+== Rule: Make some people from the rest
+check @ : random.oddsOf(Parameters.cPEOPLE_PCT,100)
+change U isa Uninfected
+
+ @ -> U
+
+== Rule: Leave the rest empty
+
+ @ -> _
